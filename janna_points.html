@@ -1,0 +1,222 @@
+
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <title>نقاط المستخدمين</title>
+  <style>
+    body { font-family: Arial; text-align: center; background: #f0f0f0; margin: 0; padding: 20px; }
+    h1 { color: #333; }
+    .user, .action {
+      background: white;
+      padding: 10px;
+      margin: 10px auto;
+      max-width: 350px;
+      border-radius: 10px;
+      box-shadow: 0 0 5px #ccc;
+    }
+    button {
+      padding: 8px 12px;
+      margin: 5px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .add-btn { background-color: #28a745; color: white; }
+    .action-btn { background-color: #007bff; color: white; display: block; width: 90%; margin: 5px auto; }
+    .back-btn { background-color: #6c757d; color: white; margin-top: 20px; }
+    .delete-btn { background-color: #dc3545; color: white; }
+    .input-row {
+      display: flex; justify-content: center; gap: 5px; margin-top: 10px;
+    }
+    .input-row input {
+      padding: 5px; border-radius: 5px; border: 1px solid #ccc; width: 100px;
+    }
+    .custom-point {
+      background: #f9f9f9;
+      padding: 5px;
+      margin: 5px 0;
+      border-radius: 5px;
+      box-shadow: 0 0 3px #ccc;
+    }
+  </style>
+</head>
+<body>
+
+<h1>📊 نقاط المستخدمين</h1>
+
+<div id="mainView">
+  <button class="add-btn" onclick="addUser()">➕ إضافة مستخدم</button>
+  <button class="add-btn" onclick="showLogs()">📜 سجل النقاط</button>
+  <div id="usersList"></div>
+</div>
+
+<div id="userView" style="display:none;">
+  <h2 id="userTitle"></h2>
+  <div class="action">
+    <button class="action-btn" onclick="updatePoints(1)">✅ sliti fdar : +1 pt</button>
+    <button class="action-btn" onclick="updatePoints(2)">✅ sliti jam3 : +2 pt</button>
+    <button class="action-btn" onclick="updatePoints(-0.5)">❌ ma slitich flwa9t : -0.5 pt</button>
+    <button class="action-btn" onclick="updatePoints(-0.1)">❌ ila sbiti : -0.1 pt</button>
+
+    <div class="input-row">
+      <input type="text" id="customTitle" placeholder="عنوان النقطة">
+      <input type="number" id="customValue" placeholder="عدد النقاط" step="0.1">
+    </div>
+    <button class="action-btn" onclick="addCustomPoint()">➕ أضف نقطة مخصصة</button>
+
+    <div id="customPointsList"></div>
+  </div>
+  <button class="back-btn" onclick="back()">⬅ العودة</button>
+</div>
+
+<div id="logView" style="display:none;">
+  <h2>📜 سجل النقاط</h2>
+  <div id="logList" style="text-align: left; max-width: 600px; margin: auto; background: white; padding: 10px; border-radius: 10px; box-shadow: 0 0 5px #ccc;"></div>
+  <button class="back-btn" onclick="back()">⬅ العودة</button>
+</div>
+
+<script>
+  let users = JSON.parse(localStorage.getItem("users") || "{}");
+  let currentUser = null;
+  if (!localStorage.getItem("log")) localStorage.setItem("log", "[]");
+
+  function saveUsers() {
+    localStorage.setItem("users", JSON.stringify(users));
+  }
+
+  function logAction(user, action, value) {
+    const logs = JSON.parse(localStorage.getItem("log"));
+    logs.push({
+      user,
+      action,
+      value,
+      time: new Date().toLocaleString()
+    });
+    localStorage.setItem("log", JSON.stringify(logs));
+  }
+
+  function renderUsers() {
+    const list = document.getElementById("usersList");
+    list.innerHTML = "";
+    for (let name in users) {
+      const user = users[name];
+      let total = user.base || 0;
+      if (user.custom) {
+        for (let pt of user.custom) total += Number(pt.value);
+      }
+      const div = document.createElement("div");
+      div.className = "user";
+      div.innerHTML = `
+        <strong>${name}</strong><br>نقاط: ${total.toFixed(2)}<br>
+        <button onclick="openUser('${name}')">⚙️ تعديل النقاط</button>
+        <button class="delete-btn" onclick="deleteUser('${name}')">🗑️ حذف</button>`;
+      list.appendChild(div);
+    }
+  }
+
+  function addUser() {
+    const name = prompt("أدخل اسم المستخدم:");
+    if (name && !users[name]) {
+      users[name] = { base: 0, custom: [] };
+      saveUsers();
+      renderUsers();
+    } else {
+      alert("⚠️ المستخدم موجود أو الاسم فارغ.");
+    }
+  }
+
+  function openUser(name) {
+    currentUser = name;
+    document.getElementById("mainView").style.display = "none";
+    document.getElementById("userView").style.display = "block";
+    document.getElementById("logView").style.display = "none";
+    updateUserView();
+  }
+
+  function updateUserView() {
+    const user = users[currentUser];
+    document.getElementById("userTitle").innerText =
+      `🔧 تعديل النقاط: ${currentUser} (الأساسية: ${user.base.toFixed(2)})`;
+
+    const list = document.getElementById("customPointsList");
+    list.innerHTML = "";
+    if (user.custom && user.custom.length > 0) {
+      user.custom.forEach((pt, index) => {
+        const div = document.createElement("div");
+        div.className = "custom-point";
+        div.innerHTML = `${pt.title}: ${pt.value > 0 ? '+' : ''}${Number(pt.value).toFixed(2)} نقطة
+          <button class="delete-btn" onclick="deleteCustomPoint(${index})">🗑️ حذف</button>`;
+        list.appendChild(div);
+      });
+    }
+  }
+
+  function updatePoints(value) {
+    if (currentUser) {
+      users[currentUser].base += value;
+      logAction(currentUser, "Base Point Change", value);
+      saveUsers();
+      updateUserView();
+    }
+  }
+
+  function addCustomPoint() {
+    const title = document.getElementById("customTitle").value.trim();
+    const value = parseFloat(document.getElementById("customValue").value);
+    if (!title || isNaN(value)) {
+      alert("⚠️ أدخل عنوانًا وقيمة صحيحة.");
+      return;
+    }
+    if (currentUser) {
+      users[currentUser].custom.push({ title, value });
+      logAction(currentUser, "Custom Point Added: " + title, value);
+      document.getElementById("customTitle").value = "";
+      document.getElementById("customValue").value = "";
+      saveUsers();
+      updateUserView();
+    }
+  }
+
+  function deleteCustomPoint(index) {
+    if (currentUser && users[currentUser].custom) {
+      logAction(currentUser, "Custom Point Deleted", users[currentUser].custom[index].value);
+      users[currentUser].custom.splice(index, 1);
+      saveUsers();
+      updateUserView();
+    }
+  }
+
+  function deleteUser(name) {
+    if (confirm(`هل أنت متأكد أنك تريد حذف المستخدم "${name}"؟`)) {
+      delete users[name];
+      saveUsers();
+      renderUsers();
+    }
+  }
+
+  function showLogs() {
+    document.getElementById("mainView").style.display = "none";
+    document.getElementById("userView").style.display = "none";
+    document.getElementById("logView").style.display = "block";
+
+    const logs = JSON.parse(localStorage.getItem("log") || "[]");
+    const list = document.getElementById("logList");
+    list.innerHTML = logs.reverse().map(log =>
+      `<div>👤 <strong>${log.user}</strong> | 📌 ${log.action} (${log.value})<br>🕒 ${log.time}</div><hr>`
+    ).join("");
+  }
+
+  function back() {
+    currentUser = null;
+    document.getElementById("mainView").style.display = "block";
+    document.getElementById("userView").style.display = "none";
+    document.getElementById("logView").style.display = "none";
+    renderUsers();
+  }
+
+  renderUsers();
+</script>
+
+</body>
+</html>
